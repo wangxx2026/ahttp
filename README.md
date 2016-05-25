@@ -1,8 +1,12 @@
 ### 发起异步http请求的一个php扩展
 
-####依赖libevent库
+#### 依赖libevent库
+#### install
 
-####demo
+    phpize
+    ./configure --with-php-config=/usr/local/php/bin/php-config --with-libevent=/usr/local/libevent/ --enable-ahttp
+
+#### demo
 
 ```php
 $obj = new ahttp();

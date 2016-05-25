@@ -1,0 +1,13 @@
+// $Id$
+// vim:ft=javascript
+
+// If your extension references something external, use ARG_WITH
+// ARG_WITH("ahttp", "for ahttp support", "no");
+
+// Otherwise, use ARG_ENABLE
+// ARG_ENABLE("ahttp", "enable ahttp support", "no");
+
+if (PHP_AHTTP != "no") {
+	EXTENSION("ahttp", "ahttp.c", PHP_EXTNAME_SHARED, "/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1");
+}
+

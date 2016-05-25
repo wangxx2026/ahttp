@@ -10,8 +10,8 @@ $obj->set_time_out(1000);
 $obj->get('http://www.google.com');
 $obj->post('http://example.com', array('data' => 'aaaaaa'));
 $obj->get('http://example.com', array('header' => array('User-agent' => 'ahttp')));
-
-$arr = $obj->wait_reply();
+$obj->wait_reply();
+$arr = $obj->result();
 ```
 
 返回值的顺序按发起的返回

@@ -501,7 +501,7 @@ PHP_METHOD(ahttp, set_time_out)
 	ce = Z_OBJCE_P(getThis());
 	zend_update_property_long(ce, getThis(), "time_out", sizeof("time_out") - 1, msec);
 }
-const zend_function_entry ahttp_functions[] = {
+const zend_function_entry ahttp_ce_functions[] = {
 		PHP_ME(ahttp, __construct, NULL, ZEND_ACC_PUBLIC|ZEND_ACC_CTOR)
 		PHP_ME(ahttp, get, NULL, ZEND_ACC_PUBLIC)
 		PHP_ME(ahttp, post, NULL, ZEND_ACC_PUBLIC)
@@ -527,7 +527,7 @@ PHP_MINIT_FUNCTION(ahttp)
 	le_ahttp = zend_register_list_destructors_ex(_php_event_base_dtor, NULL, AHTTP_RES_NAME, module_number);
 
 	zend_class_entry ce;
-	INIT_CLASS_ENTRY(ce, "ahttp", ahttp_functions);
+	INIT_CLASS_ENTRY(ce, "ahttp", ahttp_ce_functions);
 	ahttp_entry = zend_register_internal_class(&ce);
 	return SUCCESS;
 }
@@ -583,9 +583,11 @@ PHP_MINFO_FUNCTION(ahttp)
  *
  * Every user visible function must have an entry in ahttp_functions[].
  */
-PHP_FUNCTION(confirm_ahttp_compiled){}
-const zend_function_entry ahttp_m_functions[] = {
-	PHP_FE(confirm_ahttp_compiled,	NULL)
+PHP_FUNCTION(ahttp_version){
+	RETVAL_STRING(PHP_AHTTP_VERSION);
+}
+const zend_function_entry ahttp_functions[] = {
+	PHP_FE(ahttp_version,	NULL)
 	PHP_FE_END
 };
 /* }}} */
@@ -595,7 +597,7 @@ const zend_function_entry ahttp_m_functions[] = {
 zend_module_entry ahttp_module_entry = {
 	STANDARD_MODULE_HEADER,
 	"ahttp",
-	NULL,//ahttp_functions,
+	ahttp_functions,//ahttp_functions,
 	PHP_MINIT(ahttp),
 	PHP_MSHUTDOWN(ahttp),
 	PHP_RINIT(ahttp),		/* Replace with NULL if there's nothing to do at request start */

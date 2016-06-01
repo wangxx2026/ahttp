@@ -90,6 +90,7 @@ http_request_done(struct evhttp_request *req, void *ctx)
 	zend_class_entry *ce;
 	zval *result_arr, *rv, *rv_0, *rv_err, result, *z_rsrc, *error_arr, *response_arr, response_res;
 	struct readcb_arg *arg = ctx;
+	zend_string *strg;
 
 	ce = Z_OBJCE_P(arg->this);
 	result_arr = zend_read_property(ce, arg->this, "result_arr", sizeof("result_arr") - 1, 0 TSRMLS_CC, rv);
@@ -100,7 +101,6 @@ http_request_done(struct evhttp_request *req, void *ctx)
 	{
 		struct evbuffer *input = evhttp_request_get_input_buffer(req);
 		size_t len = evbuffer_get_length(input);
-		zend_string *strg;
 		zend_resource *rsrc_base;
 		struct event_base *base;
 
@@ -114,9 +114,10 @@ http_request_done(struct evhttp_request *req, void *ctx)
 	}
 	else
 	{
-
 		add_assoc_long_ex(&response_res, "http_code", sizeof("http_code") - 1, 503);
 		add_assoc_string_ex(&response_res, "message", sizeof("message") - 1, "Service Unavailable");
+		strg = strpprintf(1, "%s", "");
+		ZVAL_NEW_STR(&result, strg);
 	}
 	add_index_zval(response_arr, arg->idx, &response_res);
 	add_index_zval(result_arr, arg->idx, &result);

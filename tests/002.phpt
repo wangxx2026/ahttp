@@ -6,6 +6,7 @@ Check for ahttp presence
 <?php 
 $obj = new ahttp();
 $obj->get('http://www.baidu.com');
+$obj->get('http://www.baidu.com2');
 $obj->wait_reply();
 var_dump($obj);
 /*

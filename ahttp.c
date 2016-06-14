@@ -88,43 +88,40 @@ static void
 http_request_done(struct evhttp_request *req, void *ctx)
 {
 	zend_class_entry *ce;
-	zval *result_arr, result, *z_rsrc, *error_arr, *response_arr, response_res;
+	zval *result_arr, result, *z_rsrc, *error_arr, *response_arr, *response_res, *tmp_reponse;
 	struct readcb_arg *arg = ctx;
-	//zend_string *strg;
+
+	int http_code;
 	char *strg;
 
 	ce = Z_OBJCE_P(arg->this);
 	result_arr = zend_read_property(ce, arg->this, "result_arr", sizeof("result_arr") - 1, 0 TSRMLS_CC);
 	response_arr = zend_read_property(ce, arg->this, "response_arr", sizeof("response_arr") -1, 0 TSRMLS_CC);
-	array_init(&response_res);
 
+	MAKE_STD_ZVAL(tmp_reponse);
+	array_init(tmp_reponse);
 	if(req)
 	{
 		struct evbuffer *input = evhttp_request_get_input_buffer(req);
 		size_t len = evbuffer_get_length(input), s_len;
-		//zend_resource *rsrc_base;
-		//struct event_base *base;
 
 		s_len = spprintf(&strg, 0, "%s", evbuffer_pullup(input, len));
-		//RETURN_STRINGL(strg, len, 0);
-		//strg = strpprintf(len, "%s", evbuffer_pullup(input, len));
-		evbuffer_drain(input, len);
-		//ZVAL_NEW_STR(&result, strg);
 
-		add_assoc_long_ex(&response_res, "http_code", sizeof("http_code") - 1, evhttp_request_get_response_code(req));
-		add_assoc_string_ex(&response_res, "message", sizeof("message") - 1, "", 0);
+		http_code = evhttp_request_get_response_code(req);
+		add_assoc_string(tmp_reponse, "message", "", 1);
 
 	}
 	else
 	{
-		add_assoc_long_ex(&response_res, "http_code", sizeof("http_code") - 1, 503);
-		add_assoc_string_ex(&response_res, "message", sizeof("message") - 1, "Service Unavailable", 0);
+
+		http_code = 503;
+		add_assoc_string(tmp_reponse, "message", "Service Unavailable", 1);
 		spprintf(&strg, 0, "%s", "");
-		//strg = strpprintf(1, "%s", "");
-		//ZVAL_NEW_STR(&result, strg);
 	}
-	add_index_zval(response_arr, arg->idx, &response_res);
-	add_index_string(result_arr, arg->idx, strg, 0);
+	add_assoc_long(tmp_reponse, "http_code", http_code);
+	add_index_string(result_arr, arg->idx, strg, 1);
+	add_index_zval(response_arr, arg->idx, tmp_reponse);
+	efree(strg);
 }
 
 
@@ -142,7 +139,7 @@ static void php_ahttp_init_globals(zend_ahttp_globals *ahttp_globals)
 
 PHP_METHOD(ahttp, __construct)
 {
-	zval url_arr, result_arr, response_arr, error_arr, header_arr, *rsrc_rst;
+	zval *url_arr, *result_arr, *response_arr, error_arr, header_arr, *rsrc_rst;
 	struct event_base *base;
 	int rsrc;
 	int le_ahttp = php_le_ahttp();
@@ -154,22 +151,26 @@ PHP_METHOD(ahttp, __construct)
 	base = event_base_new_with_config(evconfig);
 	event_config_free(evconfig);
 
+	MAKE_STD_ZVAL(rsrc_rst);
+	MAKE_STD_ZVAL(url_arr);
+	MAKE_STD_ZVAL(result_arr);
+	MAKE_STD_ZVAL(response_arr);
+
 	rsrc = zend_register_resource(rsrc_rst, base, le_ahttp);
-	array_init(&url_arr);
-	array_init(&result_arr);
-	array_init(&response_arr);
+	array_init(url_arr);
+	array_init(result_arr);
+	array_init(response_arr);
 
-	add_property_zval_ex(getThis(), "base", sizeof("base") - 1, rsrc_rst);
-	add_property_long_ex(getThis(), "time_out", sizeof("time_out") -1, 2000);
-	add_property_zval_ex(getThis(), "url_arr", sizeof("url_arr") - 1,  &url_arr);
-	add_property_zval_ex(getThis(), "result_arr", sizeof("result_arr") -1, &result_arr);
-	add_property_zval_ex(getThis(), "response_arr", sizeof("response_arr") -1, &response_arr);
+	add_property_zval(getThis(), "base", rsrc_rst);
+	add_property_long(getThis(), "time_out", 2000);
+	add_property_zval(getThis(), "url_arr", url_arr);
+	add_property_zval(getThis(), "result_arr", result_arr);
+	add_property_zval(getThis(), "response_arr", response_arr);
 
-	Z_DELREF_P(&url_arr);
-	Z_DELREF_P(&result_arr);
-	Z_DELREF_P(&response_arr);
-	Z_DELREF_P(&header_arr);
-
+	zval_ptr_dtor(&url_arr);
+	zval_ptr_dtor(&result_arr);
+	zval_ptr_dtor(&response_arr);
+	zval_ptr_dtor(&rsrc_rst);
 }
 
 PHP_METHOD(ahttp, get)
@@ -177,7 +178,7 @@ PHP_METHOD(ahttp, get)
 	char *url = NULL;
 	size_t url_len;
 
-	zval *z_arr, url_arr, *opt_arr = NULL;
+	zval *z_arr, *url_arr, *opt_arr = NULL;
 	zend_class_entry *ce;
 	HashTable *url_ht;
 
@@ -185,7 +186,7 @@ PHP_METHOD(ahttp, get)
 	z_arr = zend_read_property(ce, getThis(), "url_arr", sizeof("url_arr") - 1, 0 TSRMLS_CC);
 	url_ht = Z_ARRVAL_P(z_arr);
 
-	if(url_ht->nTableSize == 50)
+	if(url_ht->nNumOfElements == 50)
 	{
 		php_error_docref(NULL, E_ERROR, "too many request, should  be less than 50");
 	}
@@ -219,25 +220,24 @@ PHP_METHOD(ahttp, get)
 			php_error_docref(NULL, E_ERROR, "url must have a host");
 		}
 
-		array_init(&url_arr);
-		add_assoc_string_ex(&url_arr, "url", sizeof("url") - 1, url, 0);
-		add_assoc_string_ex(&url_arr, "method", sizeof("method") - 1,  method, 0);
-
+		MAKE_STD_ZVAL(url_arr);
+		array_init(url_arr);
+		add_assoc_string(url_arr, "url", url, 1);
+		add_assoc_string(url_arr, "method",  method, 1);
 
 		// 处理参数选项
 		if(opt_arr)
 		{
 			void *header;
 			char *header_key = "header";
-			if(zend_hash_exists(Z_ARRVAL_P(opt_arr), header_key, sizeof(header_key) - 1))
+			if(zend_hash_exists(Z_ARRVAL_P(opt_arr), header_key, sizeof(header_key) + 1))
 			{
-				 zend_hash_find(Z_ARRVAL_P(opt_arr), header_key, sizeof(header_key) - 1, &header);
-				add_assoc_zval(&url_arr, "header", header);
+				 zend_hash_find(Z_ARRVAL_P(opt_arr), header_key, sizeof(header_key) + 1, &header);
+				add_assoc_zval(url_arr, "header", header);
 				Z_ADDREF_P(header);
 			}
 		}
-
-		add_next_index_zval(z_arr, &url_arr);
+		add_next_index_zval(z_arr, url_arr);
 	}
 }
 
@@ -255,7 +255,7 @@ PHP_METHOD(ahttp, post)
 	z_arr = zend_read_property(ce, getThis(), "url_arr", sizeof("url_arr") - 1, 0 TSRMLS_CC);
 	url_ht = Z_ARRVAL_P(z_arr);
 
-	if(url_ht->nTableSize == 50)
+	if(url_ht->nNumOfElements == 50)
 	{
 		php_error_docref(NULL, E_ERROR, "too many request, should  be less than 50");
 	}
@@ -299,16 +299,16 @@ PHP_METHOD(ahttp, post)
 			void *header, *post_data;
 			char *header_key = "header";
 			char *data_key = "data";
-			if(zend_hash_exists(Z_ARRVAL_P(opt_arr), header_key, strlen(header_key) - 1))
+			if(zend_hash_exists(Z_ARRVAL_P(opt_arr), header_key, strlen(header_key) + 1))
 			{
-				zend_hash_find(Z_ARRVAL_P(opt_arr), header_key, strlen(header_key) - 1, &header);
+				zend_hash_find(Z_ARRVAL_P(opt_arr), header_key, strlen(header_key) + 1, &header);
 				add_assoc_zval(&url_arr, "header", header);
 				Z_ADDREF_P(header);
 			}
 
-			if(zend_hash_exists(Z_ARRVAL_P(opt_arr), data_key, strlen(data_key) - 1))
+			if(zend_hash_exists(Z_ARRVAL_P(opt_arr), data_key, strlen(data_key) + 1))
 			{
-				zend_hash_find(Z_ARRVAL_P(opt_arr), data_key, strlen(data_key) - 1, &post_data);
+				zend_hash_find(Z_ARRVAL_P(opt_arr), data_key, strlen(data_key) + 1, &post_data);
 				add_assoc_zval(&url_arr, "data", post_data);
 				Z_ADDREF_P(post_data);
 			}
@@ -335,19 +335,20 @@ PHP_METHOD(ahttp, wait_reply)
 
 	time_out = zend_read_property(ce, getThis(), "time_out", sizeof("time_out") - 1, 0 TSRMLS_CC);
 
-	struct evhttp_uri *http_uri[url_ht->nTableSize], *location[url_ht->nTableSize];
-	const char *scheme[url_ht->nTableSize], *host[url_ht->nTableSize], *path[url_ht->nTableSize],
-	*query[url_ht->nTableSize];
-	int port[url_ht->nTableSize];
-	char *port_s[url_ht->nTableSize];
-	struct readcb_arg cb_arg[url_ht->nTableSize];
-	struct evhttp_connection *evcon[url_ht->nTableSize];
-	struct evhttp_request *req[url_ht->nTableSize];
-	char buffer[url_ht->nTableSize][URL_MAX];
-	char uri[url_ht->nTableSize][256];
-	struct bufferevent *bev[url_ht->nTableSize];
-	struct evkeyvalq *output_headers[url_ht->nTableSize];
-	struct evbuffer *output_buffer[url_ht->nTableSize];
+	int arr_size = url_ht->nNumOfElements;
+	struct evhttp_uri *http_uri[arr_size], *location[arr_size];
+	const char *scheme[arr_size], *host[arr_size], *path[arr_size],
+	*query[arr_size];
+	int port[arr_size];
+	char *port_s[arr_size];
+	struct readcb_arg cb_arg[arr_size];
+	struct evhttp_connection *evcon[arr_size];
+	struct evhttp_request *req[arr_size];
+	char buffer[arr_size][URL_MAX];
+	char uri[arr_size][256];
+	struct bufferevent *bev[arr_size];
+	struct evkeyvalq *output_headers[arr_size];
+	struct evbuffer *output_buffer[arr_size];
 
 	char *url_key = "url";
 	char *method_key = "method";
@@ -360,21 +361,30 @@ PHP_METHOD(ahttp, wait_reply)
 		uint keylen;
 		zend_ulong idx;
 		int type;
-		zval **ppzval, tmpcopy, *purl, *method;
+		zval **ppzval, tmpcopy, **purl, **method, tmp_url, tmp_method;
+		HashTable *url_arr;
 
 		type = zend_hash_get_current_key_ex(url_ht, &key, &keylen, &idx, 0, NULL);
 		zend_hash_get_current_data(url_ht, (void**)&ppzval);
 
+		tmpcopy = **ppzval;
+		INIT_PZVAL(&tmpcopy);
+		convert_to_array(&tmpcopy);
 
-		zend_hash_find(Z_ARRVAL_PP(ppzval), url_key, strlen(url_key) - 1, (void **)&purl);
-		zend_hash_find(Z_ARRVAL_PP(ppzval), method_key, strlen(method_key) - 1, (void **)&method);
+		zend_hash_find(Z_ARRVAL(tmpcopy), url_key, strlen(url_key) + 1, (void **)&purl);
+		zend_hash_find(Z_ARRVAL(tmpcopy), method_key, strlen(method_key) + 1, (void **)&method);
 
-		char *str_method = Z_STRVAL_P(method);
+		tmp_url = **purl;
+		INIT_PZVAL(&tmp_url);
+		convert_to_string(&tmp_url);
 
-		tmpcopy = *purl;
-		convert_to_string(&tmpcopy);
+		tmp_method = **method;
+		INIT_PZVAL(&tmp_method);
+		convert_to_string(&tmp_method);
 
-		http_uri[idx] = evhttp_uri_parse(Z_STRVAL(tmpcopy));
+		char *str_method = Z_STRVAL(tmp_method);
+
+		http_uri[idx] = evhttp_uri_parse(Z_STRVAL(tmp_url));
 		scheme[idx] = evhttp_uri_get_scheme(http_uri[idx]);
 		host[idx] = evhttp_uri_get_host(http_uri[idx]);
 		port[idx] = evhttp_uri_get_port(http_uri[idx]);
@@ -440,7 +450,6 @@ PHP_METHOD(ahttp, wait_reply)
 		}
 		// 自定义头信息end
 
-
 		// 处理post请求
 		if(strcasecmp(str_method, "post")  == 0)
 		{
@@ -456,6 +465,7 @@ PHP_METHOD(ahttp, wait_reply)
 				evhttp_add_header(output_headers[idx], "Content-Length", buf);
 			}
 		}
+
 		// 处理post请求 end
 
 		evhttp_add_header(output_headers[idx], "Connection", "close");
@@ -464,7 +474,7 @@ PHP_METHOD(ahttp, wait_reply)
 		evhttp_connection_set_timeout(evcon[idx], Z_LVAL_P(time_out));
 		evhttp_connection_set_retries(evcon[idx], 2);
 		evhttp_make_request(evcon[idx], req[idx], (strcasecmp(str_method, "get")  == 0) ? EVHTTP_REQ_GET : EVHTTP_REQ_POST, evhttp_uri_join(location[idx], buffer[idx], URL_MAX));
-		zval_dtor(&tmpcopy);
+		//zval_dtor(&tmpcopy);
 	}
 	event_base_dispatch(base);
 }
@@ -522,7 +532,7 @@ PHP_MINIT_FUNCTION(ahttp)
 
 	zend_class_entry ce;
 	INIT_CLASS_ENTRY(ce, "ahttp", ahttp_ce_functions);
-	ahttp_entry = zend_register_internal_class(&ce);
+	ahttp_entry = zend_register_internal_class(&ce TSRMLS_CC);
 	return SUCCESS;
 }
 /* }}} */

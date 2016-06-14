@@ -6,6 +6,10 @@
     phpize
     ./configure --with-php-config=/usr/local/php/bin/php-config --with-libevent=/usr/local/libevent/ --enable-ahttp
 
+    branch for_php55 for php5.5
+
+    branch master for php7
+
 #### demo
 
 ```php

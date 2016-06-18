@@ -228,13 +228,16 @@ PHP_METHOD(ahttp, get)
 		// 处理参数选项
 		if(opt_arr)
 		{
-			void *header;
+			zval **header, *tmpcopy;
 			char *header_key = "header";
-			if(zend_hash_exists(Z_ARRVAL_P(opt_arr), header_key, sizeof(header_key) + 1))
+			if(zend_hash_exists(Z_ARRVAL_P(opt_arr), header_key, strlen(header_key) + 1))
 			{
-				 zend_hash_find(Z_ARRVAL_P(opt_arr), header_key, sizeof(header_key) + 1, &header);
-				add_assoc_zval(url_arr, "header", header);
-				Z_ADDREF_P(header);
+				zend_hash_find(Z_ARRVAL_P(opt_arr), header_key, strlen(header_key) + 1, (void **)&header);
+
+				MAKE_STD_ZVAL(tmpcopy);
+				MAKE_COPY_ZVAL(header, tmpcopy);
+				convert_to_array(tmpcopy);
+				add_assoc_zval(url_arr, "header", tmpcopy);
 			}
 		}
 		add_next_index_zval(z_arr, url_arr);
@@ -247,7 +250,7 @@ PHP_METHOD(ahttp, post)
 	char *url = NULL;
 	size_t url_len;
 
-	zval *z_arr, url_arr, *opt_arr = NULL;
+	zval *z_arr, *url_arr, *opt_arr = NULL;
 	zend_class_entry *ce;
 	HashTable *url_ht;
 
@@ -289,32 +292,41 @@ PHP_METHOD(ahttp, post)
 			php_error_docref(NULL, E_ERROR, "url must have a host");
 		}
 
-		array_init(&url_arr);
-		add_assoc_string(&url_arr, "url", url, 0);
-		add_assoc_string(&url_arr, "method", method, 0);
+		MAKE_STD_ZVAL(url_arr);
+		array_init(url_arr);
+		add_assoc_string(url_arr, "url", url, 1);
+		add_assoc_string(url_arr, "method",  method, 1);
 
 		// 处理参数选项
 		if(opt_arr)
 		{
-			void *header, *post_data;
+			zval **header, **post_data, *tmpcopy, p_tmpcopy;
 			char *header_key = "header";
 			char *data_key = "data";
+
 			if(zend_hash_exists(Z_ARRVAL_P(opt_arr), header_key, strlen(header_key) + 1))
 			{
-				zend_hash_find(Z_ARRVAL_P(opt_arr), header_key, strlen(header_key) + 1, &header);
-				add_assoc_zval(&url_arr, "header", header);
-				Z_ADDREF_P(header);
+				zend_hash_find(Z_ARRVAL_P(opt_arr), header_key, strlen(header_key) + 1, (void **)&header);
+
+				MAKE_STD_ZVAL(tmpcopy);
+				MAKE_COPY_ZVAL(header, tmpcopy);
+				convert_to_array(tmpcopy);
+				add_assoc_zval(url_arr, "header", tmpcopy);
 			}
 
 			if(zend_hash_exists(Z_ARRVAL_P(opt_arr), data_key, strlen(data_key) + 1))
 			{
-				zend_hash_find(Z_ARRVAL_P(opt_arr), data_key, strlen(data_key) + 1, &post_data);
-				add_assoc_zval(&url_arr, "data", post_data);
-				Z_ADDREF_P(post_data);
+				zend_hash_find(Z_ARRVAL_P(opt_arr), data_key, strlen(data_key) + 1, (void **)&post_data);
+
+				p_tmpcopy = **post_data;
+				INIT_PZVAL(&p_tmpcopy);
+				convert_to_string(&p_tmpcopy);
+
+				add_assoc_string(url_arr, "data", Z_STRVAL(p_tmpcopy), 1);
 			}
 		}
 
-		add_next_index_zval(z_arr, &url_arr);
+		add_next_index_zval(z_arr, url_arr);
 	}
 }
 
@@ -421,16 +433,21 @@ PHP_METHOD(ahttp, wait_reply)
 
 		// 自定义头信息
 		{
-			if(zend_hash_exists(Z_ARRVAL_PP(ppzval), header_key, strlen(header_key) - 1))
+			if(zend_hash_exists(Z_ARRVAL(tmpcopy), header_key, strlen(header_key) + 1))
 			{
-				zval **hv_zval, h_tmpcopy, hk_con;
+				zval **hv_zval, h_tmpcopy, hk_con, *oh_tmpcopy, **header;
 				HashTable *header_ht;
 				int hk_type;
 				char *h_key;
-				zval *header;
 
-				zend_hash_find(Z_ARRVAL_PP(ppzval), header_key, strlen(header_key) - 1, (void **)&header);
-				header_ht = Z_ARRVAL_P(header);
+				zend_hash_find(Z_ARRVAL_PP(ppzval), header_key, strlen(header_key) + 1, (void **)&header);
+
+
+				MAKE_STD_ZVAL(oh_tmpcopy);
+				MAKE_COPY_ZVAL(header, oh_tmpcopy);
+				convert_to_array(oh_tmpcopy);
+				// header 转成数组类型
+				header_ht = Z_ARRVAL_P(oh_tmpcopy);
 
 				for(zend_hash_internal_pointer_reset(header_ht); zend_hash_has_more_elements(header_ht) == SUCCESS; zend_hash_move_forward(header_ht))
 				{
@@ -446,6 +463,7 @@ PHP_METHOD(ahttp, wait_reply)
 					}
 					zval_dtor(&h_tmpcopy);
 				}
+				zval_ptr_dtor(&oh_tmpcopy);
 			}
 		}
 		// 自定义头信息end
@@ -453,21 +471,25 @@ PHP_METHOD(ahttp, wait_reply)
 		// 处理post请求
 		if(strcasecmp(str_method, "post")  == 0)
 		{
-			if(zend_hash_exists(Z_ARRVAL_PP(ppzval), data_key, strlen(data_key) - 1))
+			if(zend_hash_exists(Z_ARRVAL_PP(ppzval), data_key, strlen(data_key) + 1))
 			{
 				char buf[1024];
-				zval *post_data;
+				zval **post_data, p_tmpcoy;
 				struct evbuffer *output_buffer = evhttp_request_get_output_buffer(req[idx]);
-				zend_hash_find(Z_ARRVAL_PP(ppzval), data_key, strlen(data_key) - 1, (void **)&post_data);
-				evbuffer_add(output_buffer, Z_STRVAL_P(post_data), Z_STRLEN_P(post_data));
-				int len = Z_STRLEN_P(post_data);
+				zend_hash_find(Z_ARRVAL_PP(ppzval), data_key, strlen(data_key) + 1, (void **)&post_data);
+
+				p_tmpcoy = **post_data;
+				INIT_PZVAL(&p_tmpcoy);
+				convert_to_string(&p_tmpcoy);
+
+				evbuffer_add(output_buffer, Z_STRVAL(p_tmpcoy), Z_STRLEN(p_tmpcoy));
+				int len = Z_STRLEN(p_tmpcoy);
 				evutil_snprintf(buf, sizeof(buf)-1, "%lu", (unsigned long)len);
 				evhttp_add_header(output_headers[idx], "Content-Length", buf);
 			}
 		}
 
 		// 处理post请求 end
-
 		evhttp_add_header(output_headers[idx], "Connection", "close");
 
 		//evhttp_connection_set_timeout

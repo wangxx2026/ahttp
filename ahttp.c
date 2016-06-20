@@ -508,8 +508,7 @@ PHP_METHOD(ahttp, result)
 
 	ce = Z_OBJCE_P(getThis());
 	result_arr = zend_read_property(ce, getThis(), "result_arr", sizeof("result_arr") - 1, 0 TSRMLS_CC);
-	Z_ADDREF_P(result_arr);
-	RETURN_ZVAL(result_arr,0, 1);
+	RETURN_ZVAL(result_arr, 1 , 0);
 	return;
 }
 

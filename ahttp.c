@@ -90,9 +90,9 @@ http_request_done(struct evhttp_request *req, void *ctx)
 	zend_class_entry *ce;
 	zval *result_arr, result, *z_rsrc, *error_arr, *response_arr, *response_res, *tmp_reponse;
 	struct readcb_arg *arg = ctx;
-
-	int http_code;
 	char *strg;
+	int http_code;
+
 
 	ce = Z_OBJCE_P(arg->this);
 	result_arr = zend_read_property(ce, arg->this, "result_arr", sizeof("result_arr") - 1, 0 TSRMLS_CC);
@@ -102,10 +102,12 @@ http_request_done(struct evhttp_request *req, void *ctx)
 	array_init(tmp_reponse);
 	if(req)
 	{
+		int body_size = req->body_size;
+
 		struct evbuffer *input = evhttp_request_get_input_buffer(req);
 		size_t len = evbuffer_get_length(input), s_len;
 
-		s_len = spprintf(&strg, 0, "%s", evbuffer_pullup(input, len));
+		s_len = spprintf(&strg, body_size, "%s", evbuffer_pullup(input, len));
 
 		http_code = evhttp_request_get_response_code(req);
 		add_assoc_string(tmp_reponse, "message", "", 1);
@@ -496,7 +498,6 @@ PHP_METHOD(ahttp, wait_reply)
 		evhttp_connection_set_timeout(evcon[idx], Z_LVAL_P(time_out));
 		evhttp_connection_set_retries(evcon[idx], 2);
 		evhttp_make_request(evcon[idx], req[idx], (strcasecmp(str_method, "get")  == 0) ? EVHTTP_REQ_GET : EVHTTP_REQ_POST, evhttp_uri_join(location[idx], buffer[idx], URL_MAX));
-		//zval_dtor(&tmpcopy);
 	}
 	event_base_dispatch(base);
 }

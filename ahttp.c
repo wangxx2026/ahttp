@@ -102,12 +102,10 @@ http_request_done(struct evhttp_request *req, void *ctx)
 	array_init(tmp_reponse);
 	if(req)
 	{
-		int body_size = req->body_size;
-
 		struct evbuffer *input = evhttp_request_get_input_buffer(req);
 		size_t len = evbuffer_get_length(input), s_len;
 
-		s_len = spprintf(&strg, body_size, "%s", evbuffer_pullup(input, len));
+		s_len = spprintf(&strg, len, "%s", evbuffer_pullup(input, len));
 
 		http_code = evhttp_request_get_response_code(req);
 		add_assoc_string(tmp_reponse, "message", "", 1);

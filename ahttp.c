@@ -33,6 +33,7 @@
 #include "event2/event.h"
 #include "event2/http.h"
 #include "event2/http_struct.h"
+#include "event2/keyvalq_struct.h"
 
 #define URL_MAX 4096
 
@@ -88,18 +89,22 @@ static void
 http_request_done(struct evhttp_request *req, void *ctx)
 {
 	zend_class_entry *ce;
-	zval *result_arr, result, *z_rsrc, *error_arr, *response_arr, *response_res, *tmp_reponse;
+	zval *result_arr, result, *z_rsrc, *error_arr, *response_arr, *response_res, *tmp_reponse, *header_arr;
 	struct readcb_arg *arg = ctx;
 	char *strg;
 	int http_code;
 
+	struct evkeyvalq *headers;
+	struct evkeyval *header;
 
 	ce = Z_OBJCE_P(arg->this);
 	result_arr = zend_read_property(ce, arg->this, "result_arr", sizeof("result_arr") - 1, 0 TSRMLS_CC);
 	response_arr = zend_read_property(ce, arg->this, "response_arr", sizeof("response_arr") -1, 0 TSRMLS_CC);
+	header_arr = zend_read_property(ce, arg->this, "header_arr", sizeof("header_arr") - 1, 0 TSRMLS_CC);
 
 	MAKE_STD_ZVAL(tmp_reponse);
 	array_init(tmp_reponse);
+
 	if(req)
 	{
 		struct evbuffer *input = evhttp_request_get_input_buffer(req);
@@ -109,14 +114,32 @@ http_request_done(struct evhttp_request *req, void *ctx)
 
 		http_code = evhttp_request_get_response_code(req);
 		add_assoc_string(tmp_reponse, "message", "", 1);
+		char header_str[req->headers_size + 100], *tmp_strg;
+		int h_len = 0;
+		headers = evhttp_request_get_input_headers(req);
 
+		for (header = headers->tqh_first; header; header = header->next.tqe_next)
+		{
+			int h_tmp_len = strlen(header->key) + strlen(header->value) + 2;
+			spprintf(&tmp_strg, h_tmp_len, "%s:%s\n", header->key, header->value);
+			strcat(header_str, tmp_strg);
+			efree(tmp_strg);
+
+		}
+		add_index_string(header_arr, arg->idx, header_str, 1);
+		//add_index_zval(header_arr, arg->idx, header_arr_tmp);
+
+		if(req->headers_size == 0)
+		{
+			add_assoc_string(tmp_reponse, "message", "read time out", 1);
+		}
 	}
 	else
 	{
 
 		http_code = 503;
 		add_assoc_string(tmp_reponse, "message", "Service Unavailable", 1);
-		spprintf(&strg, 0, "%s", "");
+		spprintf(&strg, 1, "%s", "");
 	}
 	add_assoc_long(tmp_reponse, "http_code", http_code);
 	add_index_string(result_arr, arg->idx, strg, 1);
@@ -139,7 +162,7 @@ static void php_ahttp_init_globals(zend_ahttp_globals *ahttp_globals)
 
 PHP_METHOD(ahttp, __construct)
 {
-	zval *url_arr, *result_arr, *response_arr, error_arr, header_arr, *rsrc_rst;
+	zval *url_arr, *result_arr, *response_arr, error_arr, *header_arr, *rsrc_rst;
 	struct event_base *base;
 	int rsrc;
 	int le_ahttp = php_le_ahttp();
@@ -155,22 +178,26 @@ PHP_METHOD(ahttp, __construct)
 	MAKE_STD_ZVAL(url_arr);
 	MAKE_STD_ZVAL(result_arr);
 	MAKE_STD_ZVAL(response_arr);
+	MAKE_STD_ZVAL(header_arr);
 
 	rsrc = zend_register_resource(rsrc_rst, base, le_ahttp);
 	array_init(url_arr);
 	array_init(result_arr);
 	array_init(response_arr);
+	array_init(header_arr);
 
 	add_property_zval(getThis(), "base", rsrc_rst);
 	add_property_long(getThis(), "time_out", 2000);
 	add_property_zval(getThis(), "url_arr", url_arr);
 	add_property_zval(getThis(), "result_arr", result_arr);
 	add_property_zval(getThis(), "response_arr", response_arr);
+	add_property_zval(getThis(), "header_arr", header_arr);
 
 	zval_ptr_dtor(&url_arr);
 	zval_ptr_dtor(&result_arr);
 	zval_ptr_dtor(&response_arr);
 	zval_ptr_dtor(&rsrc_rst);
+	zval_ptr_dtor(&header_arr);
 }
 
 PHP_METHOD(ahttp, get)

@@ -5,13 +5,14 @@ Check for ahttp presence
 --FILE--
 <?php 
 $obj = new ahttp();
-$obj->get('http://www.baidu.com');
-$obj->post('http://www.baidu.com', array(
+$obj->get('http://www.ifeng.com');
+/*$obj->post('http://www.baidu.com', array(
     'data' => 'aaaaaaaaaaaaa'
-));
+));*/
 $obj->wait_reply();
 $data = $obj->result();
-var_dump($data);
+echo $obj->header_arr[0];
+//var_dump($data);
 /*
 	you can add regression tests for your extension here
 

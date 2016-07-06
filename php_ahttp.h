@@ -44,13 +44,12 @@ extern zend_module_entry ahttp_module_entry;
 
 /*
   	Declare any global variables you may need between the BEGIN
-	and END macros here:
+	and END macros here:*/
 
 ZEND_BEGIN_MODULE_GLOBALS(ahttp)
-	zend_long  global_value;
-	char *global_string;
+	zend_long  req_limit;
 ZEND_END_MODULE_GLOBALS(ahttp)
-*/
+
 
 /* Always refer to the globals in your function as AHTTP_G(variable).
    You are encouraged to rename these macros something shorter, see

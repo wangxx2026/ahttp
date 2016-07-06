@@ -37,9 +37,9 @@
 
 #define URL_MAX 4096
 
-/* If you declare any globals in php_ahttp.h uncomment this:
+/* If you declare any globals in php_ahttp.h uncomment this: */
 ZEND_DECLARE_MODULE_GLOBALS(ahttp)
-*/
+
 
 /* True global resources - no need for thread safety here */
 static int le_ahttp;
@@ -62,12 +62,10 @@ int php_le_ahttp(void)
 
 /* {{{ PHP_INI
  */
-/* Remove comments and fill if you need to have entries in php.ini
+/* Remove comments and fill if you need to have entries in php.ini */
 PHP_INI_BEGIN()
-    STD_PHP_INI_ENTRY("ahttp.global_value",      "42", PHP_INI_ALL, OnUpdateLong, global_value, zend_ahttp_globals, ahttp_globals)
-    STD_PHP_INI_ENTRY("ahttp.global_string", "foobar", PHP_INI_ALL, OnUpdateString, global_string, zend_ahttp_globals, ahttp_globals)
+    STD_PHP_INI_ENTRY("ahttp.req_limit",      "50", PHP_INI_ALL, OnUpdateLong, req_limit, zend_ahttp_globals, ahttp_globals)
 PHP_INI_END()
-*/
 /* }}} */
 
 /* Remove the following function when you have successfully modified config.m4
@@ -114,20 +112,23 @@ http_request_done(struct evhttp_request *req, void *ctx)
 
 		http_code = evhttp_request_get_response_code(req);
 		add_assoc_string(tmp_reponse, "message", "", 1);
-		char header_str[req->headers_size + 100], *tmp_strg;
+		int header_len = req->headers_size + 100;
+		char header_str[header_len], *tmp_strg;
+
+		memset(header_str, 0, header_len * sizeof(char));
+
 		int h_len = 0;
 		headers = evhttp_request_get_input_headers(req);
 
 		for (header = headers->tqh_first; header; header = header->next.tqe_next)
 		{
-			int h_tmp_len = strlen(header->key) + strlen(header->value) + 2;
-			spprintf(&tmp_strg, h_tmp_len, "%s:%s\n", header->key, header->value);
+			h_len = strlen(header->key) + strlen(header->value) + 3;
+			spprintf(&tmp_strg, h_len, "%s: %s\n", header->key, header->value);
 			strcat(header_str, tmp_strg);
 			efree(tmp_strg);
-
 		}
+
 		add_index_string(header_arr, arg->idx, header_str, 1);
-		//add_index_zval(header_arr, arg->idx, header_arr_tmp);
 
 		if(req->headers_size == 0)
 		{
@@ -151,13 +152,12 @@ http_request_done(struct evhttp_request *req, void *ctx)
 
 /* {{{ php_ahttp_init_globals
  */
-/* Uncomment this function if you have INI entries
+/* Uncomment this function if you have INI entries */
 static void php_ahttp_init_globals(zend_ahttp_globals *ahttp_globals)
 {
-	ahttp_globals->global_value = 0;
-	ahttp_globals->global_string = NULL;
+	ahttp_globals->req_limit = 50;
 }
-*/
+
 /* }}} */
 
 PHP_METHOD(ahttp, __construct)
@@ -166,7 +166,6 @@ PHP_METHOD(ahttp, __construct)
 	struct event_base *base;
 	int rsrc;
 	int le_ahttp = php_le_ahttp();
-
 	struct event_config *evconfig = event_config_new();
 	event_config_avoid_method(evconfig ,"select");
 	event_config_avoid_method(evconfig ,"poll");
@@ -198,6 +197,7 @@ PHP_METHOD(ahttp, __construct)
 	zval_ptr_dtor(&response_arr);
 	zval_ptr_dtor(&rsrc_rst);
 	zval_ptr_dtor(&header_arr);
+
 }
 
 PHP_METHOD(ahttp, get)
@@ -213,9 +213,9 @@ PHP_METHOD(ahttp, get)
 	z_arr = zend_read_property(ce, getThis(), "url_arr", sizeof("url_arr") - 1, 0 TSRMLS_CC);
 	url_ht = Z_ARRVAL_P(z_arr);
 
-	if(url_ht->nNumOfElements == 50)
+	if(zend_hash_num_elements(url_ht) == AHTTP_G(req_limit))
 	{
-		php_error_docref(NULL, E_ERROR, "too many request, should  be less than 50");
+		php_error_docref(NULL, E_ERROR, "too many request, should  be less than %ld", AHTTP_G(req_limit));
 	}
 
 	if(zend_parse_parameters(ZEND_NUM_ARGS(), "s|a", &url, &url_len, &opt_arr) == FAILURE)
@@ -285,9 +285,9 @@ PHP_METHOD(ahttp, post)
 	z_arr = zend_read_property(ce, getThis(), "url_arr", sizeof("url_arr") - 1, 0 TSRMLS_CC);
 	url_ht = Z_ARRVAL_P(z_arr);
 
-	if(url_ht->nNumOfElements == 50)
+	if(zend_hash_num_elements(url_ht) == AHTTP_G(req_limit))
 	{
-		php_error_docref(NULL, E_ERROR, "too many request, should  be less than 50");
+		php_error_docref(NULL, E_ERROR, "too many request, should  be less than %ld", AHTTP_G(req_limit));
 	}
 
 	if(zend_parse_parameters(ZEND_NUM_ARGS(), "s|a", &url, &url_len, &opt_arr) == FAILURE)
@@ -374,7 +374,7 @@ PHP_METHOD(ahttp, wait_reply)
 
 	time_out = zend_read_property(ce, getThis(), "time_out", sizeof("time_out") - 1, 0 TSRMLS_CC);
 
-	int arr_size = url_ht->nNumOfElements;
+	int arr_size = zend_hash_num_elements(url_ht);
 	struct evhttp_uri *http_uri[arr_size], *location[arr_size];
 	const char *scheme[arr_size], *host[arr_size], *path[arr_size],
 	*query[arr_size];
@@ -485,7 +485,7 @@ PHP_METHOD(ahttp, wait_reply)
 					{
 						h_tmpcopy = **hv_zval;
 						convert_to_string(&h_tmpcopy);
-						//ZVAL_NEW_STR(&hk_con, h_key);
+
 						evhttp_add_header(output_headers[idx], h_key, Z_STRVAL(h_tmpcopy));
 					}
 					zval_dtor(&h_tmpcopy);
@@ -552,13 +552,36 @@ PHP_METHOD(ahttp, set_time_out)
 	ce = Z_OBJCE_P(getThis());
 	zend_update_property_long(ce, getThis(), "time_out", sizeof("time_out") - 1, msec);
 }
+
+ZEND_BEGIN_ARG_INFO(ahttp___construct_arginfo, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO(ahttp_get_arginfo, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO(ahttp_post_arginfo, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO(ahttp_result_arginfo, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO(ahttp_set_time_out_arginfo, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO(ahttp_wait_reply_arginfo, 0)
+ZEND_END_ARG_INFO()
+
+
+
+
 const zend_function_entry ahttp_ce_functions[] = {
-		PHP_ME(ahttp, __construct, NULL, ZEND_ACC_PUBLIC|ZEND_ACC_CTOR)
-		PHP_ME(ahttp, get, NULL, ZEND_ACC_PUBLIC)
-		PHP_ME(ahttp, post, NULL, ZEND_ACC_PUBLIC)
-		PHP_ME(ahttp, result, NULL, ZEND_ACC_PUBLIC)
-		PHP_ME(ahttp, set_time_out, NULL, ZEND_ACC_PUBLIC)
-		PHP_ME(ahttp, wait_reply, NULL, ZEND_ACC_PUBLIC)
+		PHP_ME(ahttp, __construct, ahttp___construct_arginfo, ZEND_ACC_PUBLIC|ZEND_ACC_CTOR)
+		PHP_ME(ahttp, get, ahttp_get_arginfo, ZEND_ACC_PUBLIC)
+		PHP_ME(ahttp, post, ahttp_post_arginfo, ZEND_ACC_PUBLIC)
+		PHP_ME(ahttp, result, ahttp_result_arginfo, ZEND_ACC_PUBLIC)
+		PHP_ME(ahttp, set_time_out, ahttp_set_time_out_arginfo, ZEND_ACC_PUBLIC)
+		PHP_ME(ahttp, wait_reply, ahttp_wait_reply_arginfo, ZEND_ACC_PUBLIC)
+		PHP_FE_END
 };
 
 static void _php_event_base_dtor(zend_rsrc_list_entry *rsrc) /* {{{ */
@@ -571,15 +594,14 @@ static void _php_event_base_dtor(zend_rsrc_list_entry *rsrc) /* {{{ */
  */
 PHP_MINIT_FUNCTION(ahttp)
 {
-	/* If you have INI entries, uncomment these lines
+	/* If you have INI entries, uncomment these lines */
 	REGISTER_INI_ENTRIES();
-	*/
-
 	le_ahttp = zend_register_list_destructors_ex(_php_event_base_dtor, NULL, AHTTP_RES_NAME, module_number);
 
 	zend_class_entry ce;
 	INIT_CLASS_ENTRY(ce, "ahttp", ahttp_ce_functions);
 	ahttp_entry = zend_register_internal_class(&ce TSRMLS_CC);
+	php_ahttp_init_globals(&ahttp_globals);
 	return SUCCESS;
 }
 /* }}} */
@@ -588,9 +610,9 @@ PHP_MINIT_FUNCTION(ahttp)
  */
 PHP_MSHUTDOWN_FUNCTION(ahttp)
 {
-	/* uncomment this line if you have INI entries
+	/* uncomment this line if you have INI entries */
 	UNREGISTER_INI_ENTRIES();
-	*/
+
 	return SUCCESS;
 }
 /* }}} */
@@ -624,35 +646,23 @@ PHP_MINFO_FUNCTION(ahttp)
 	php_info_print_table_header(2, "ahttp support", "enabled");
 	php_info_print_table_end();
 
-	/* Remove comments if you have entries in php.ini
+	/* Remove comments if you have entries in php.ini*/
 	DISPLAY_INI_ENTRIES();
-	*/
+
 }
 /* }}} */
 
-/* {{{ ahttp_functions[]
- *
- * Every user visible function must have an entry in ahttp_functions[].
- */
-PHP_FUNCTION(ahttp_version){
-	RETVAL_STRING(PHP_AHTTP_VERSION, 0);
-}
-const zend_function_entry ahttp_functions[] = {
-	PHP_FE(ahttp_version,	NULL)
-	PHP_FE_END
-};
-/* }}} */
 
 /* {{{ ahttp_module_entry
  */
 zend_module_entry ahttp_module_entry = {
 	STANDARD_MODULE_HEADER,
 	"ahttp",
-	ahttp_functions,//ahttp_functions,
+	NULL,
 	PHP_MINIT(ahttp),
 	PHP_MSHUTDOWN(ahttp),
-	PHP_RINIT(ahttp),		/* Replace with NULL if there's nothing to do at request start */
-	PHP_RSHUTDOWN(ahttp),	/* Replace with NULL if there's nothing to do at request end */
+	PHP_RINIT(ahttp),
+	PHP_RSHUTDOWN(ahttp),
 	PHP_MINFO(ahttp),
 	PHP_AHTTP_VERSION,
 	STANDARD_MODULE_PROPERTIES

@@ -4,14 +4,17 @@ Check for ahttp presence
 <?php if (!extension_loaded("ahttp")) print "skip"; ?>
 --FILE--
 <?php 
+ini_set("ahttp.req_limit", 100);
 $obj = new ahttp();
 $obj->get('http://www.ifeng.com');
+$obj->get('http://www.ifeng.com');
+
 /*$obj->post('http://www.baidu.com', array(
     'data' => 'aaaaaaaaaaaaa'
 ));*/
 $obj->wait_reply();
 $data = $obj->result();
-echo $obj->header_arr[0];
+var_dump($obj->header_arr[0]);
 //var_dump($data);
 /*
 	you can add regression tests for your extension here

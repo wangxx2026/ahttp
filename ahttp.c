@@ -434,16 +434,17 @@ PHP_METHOD(ahttp, wait_reply)
 			port[idx] = (strcasecmp(scheme[idx], "http") == 0) ? 80 : 443;
 		}
 
-		if (strlen(path[idx]) == 0) {
-			path[idx] = "/";
-			evhttp_uri_set_path(http_uri[idx], path[idx]);
-		}
-
 		location[idx] = evhttp_uri_parse(Z_STRVAL(tmp_url));
 		evhttp_uri_set_scheme(location[idx], NULL);
 		evhttp_uri_set_userinfo(location[idx], 0);
 		evhttp_uri_set_host(location[idx], NULL);
 		evhttp_uri_set_port(location[idx], -1);
+
+		if (strlen(path[idx]) == 0) {
+			path[idx] = "/";
+			evhttp_uri_set_path(http_uri[idx], path[idx]);
+			evhttp_uri_set_path(location[idx], path[idx]);
+		}
 
 		evcon[idx] = evhttp_connection_base_new(base, NULL, host[idx], port[idx]);
 

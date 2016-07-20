@@ -439,7 +439,7 @@ PHP_METHOD(ahttp, wait_reply)
 			evhttp_uri_set_path(http_uri[idx], path[idx]);
 		}
 
-		location[idx] = http_uri[idx];
+		location[idx] = evhttp_uri_parse(Z_STRVAL(tmp_url));
 		evhttp_uri_set_scheme(location[idx], NULL);
 		evhttp_uri_set_userinfo(location[idx], 0);
 		evhttp_uri_set_host(location[idx], NULL);

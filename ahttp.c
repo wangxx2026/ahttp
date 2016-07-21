@@ -489,7 +489,6 @@ PHP_METHOD(ahttp, wait_reply)
 
 						evhttp_add_header(output_headers[idx], h_key, Z_STRVAL(h_tmpcopy));
 					}
-					zval_dtor(&h_tmpcopy);
 				}
 				zval_ptr_dtor(&oh_tmpcopy);
 			}
